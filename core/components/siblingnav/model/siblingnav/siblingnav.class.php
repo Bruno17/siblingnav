@@ -1,0 +1,332 @@
+<?php
+
+class SiblingNav
+{
+
+    function __construct(modX & $modx, array $config = array())
+    {
+        $this->modx = &$modx;
+        $corePath = $this->modx->getOption('siblingnav.core_path', $config, $this->modx->
+            getOption('core_path') . 'components/siblingnav/');
+        $assetsUrl = $this->modx->getOption('siblingnav.assets_url', $config, $this->
+            modx->getOption('assets_url') . 'components/siblingnav/');
+
+        $default['rowTpl'] = 'snrow';
+        $default['selfTpl'] = 'snself';
+        $default['prevTpl'] = 'snprev';
+        $default['nextTpl'] = 'snnext';
+        $default['firstTpl'] = 'snfirst';
+        $default['lastTpl'] = 'snlast';
+        $default['placeholderPrefix'] = 'sn.';
+        $default['id'] = $this->modx->resource->get('id');
+        $default['parents'] = false;
+
+        $default['showDeleted'] = 0;
+        $default['showUnpublished'] = 0;
+        $default['showHidden'] = 0;
+
+        //$default['level'] = 0;
+        //$default['includeDocs'] = '';
+        //$default['excludeDocs'] = '';
+        //$default['ph'] = false;
+        //$default['debug'] = false;
+        $default['ignoreHidden'] = false;
+        //$default['hideSubMenus'] = false;
+        //$default['useWeblinkUrl'] = true;
+        //$default['fullLink'] = false;
+        $default['sortOrder'] = 'ASC';
+        $default['sortBy'] = '{"menuindex":"ASC","id":"ASC"}';
+        $default['limit'] = false;
+        //$default['cssTpl'] = false;
+        //$default['jsTpl'] = false;
+        //$default['rowIdPrefix'] = false;
+        //$default['textOfLinks'] = 'menutitle';
+        //$default['titleOfLinks'] = 'pagetitle';
+        //$default['displayStart'] = false;
+        //$default['permissions'] = 'list';
+        $default['corePath'] = $corePath;
+        $default['modelPath'] = $corePath . 'model/';
+        $default['chunksPath'] = $corePath . 'elements/chunks/';
+        $default['chunkSuffix'] = '.chunk.html';
+        $default['snippetsPath'] = $corePath . 'elements/snippets/';
+        $default['processorsPath'] = $corePath . 'processors/';
+        $this->config = array_merge($default, $config);
+    }
+
+    function run()
+    {
+        if ($this->resource = $this->modx->getObject('modResource', $this->config['id'])) {
+
+            $this->config['parent'] = $this->resource->get('parent');
+            $prevrows = $this->getSiblings('down');
+            $nextrows = $this->getSiblings('up');
+
+            $this->rows['prevrows'] = $this->makeArray($prevrows);
+            $this->rows['nextrows'] = $this->makeArray($nextrows);
+            $this->makePrevNext('prev');
+            $this->makePrevNext('next');
+            $this->makeFirstLast('first');
+            $this->makeFirstLast('last');
+
+            $this->limitRows();
+
+            $prevlinks = $this->getChunks($this->config['rowTpl'], array_reverse($this->
+                rows['prevrows']));
+            $this->ph['self'] = $this->getChunk($this->config['selfTpl'], $this->resource->
+                toArray());
+            $nextlinks = $this->getChunks($this->config['rowTpl'], $this->rows['nextrows'],
+                $output);
+
+            $this->ph['prevlinks'] = implode('', $prevlinks);
+            $this->ph['nextlinks'] = implode('', $nextlinks);
+            //$this -> ph['rows'] = implode('', $output);
+
+            $this->modx->setPlaceholders($this->ph, $this->config['placeholderPrefix']);
+
+        }
+
+        return '';
+    }
+
+    function makeArray($collection)
+    {
+
+        $rows = array();
+        foreach ($collection as $object) {
+            $rows[] = $object->toArray();
+        }
+        return $rows;
+    }
+
+    function limitRows()
+    {
+        if ($this->config['limit']) {
+            $prevrows = $this->rows['prevrows'];
+            $nextrows = $this->rows['nextrows'];
+            $limit = $this->config['limit'];
+            $prevcount = count($prevrows);
+            $nextcount = count($nextrows);
+            $left_right = $limit - 1;
+            $left = round($left_right / 2);
+            $right = $left_right - $left;
+
+            if ($nextcount < $right) {
+                $left = $left_right - $nextcount;
+                $right = $nextcount;
+            } elseif ($prevcount < $left) {
+                $right = $left_right - $prevcount;
+                $left = $prevcount;
+            }
+
+            $this->rows['prevrows'] = array_slice($prevrows, 0, $left);
+            $this->rows['nextrows'] = array_slice($nextrows, 0, $right);
+
+        }
+
+        return;
+
+    }
+
+    function makePrevNext($dir)
+    {
+        $rows = $this->rows[$dir . 'rows'];
+        $row = array();
+        $row['_isactive'] = '0';
+        if (count($rows) > 0) {
+            $row = $rows[0];
+            $row['_isactive'] = '1';
+        } else {
+            if ($this->config['parents']) {
+                $parents = explode(',', $this->config['parents']);
+                $key = array_search($this->config['parent'], $parents);
+
+                switch ($dir) {
+                    case 'next':
+                        $key = $key + 1;
+                        //$direction = 'up';
+                        break;
+                    case 'prev':
+                        $key = $key - 1;
+                        //$direction = 'down';
+                        break;
+                }
+                if ($key < 0 || $key > (count($parents) - 1)) {
+
+                } else {
+                    $parent = $parents[$key];
+                    $collection = $this->getSiblings($dir, $parent, false);
+                    $this->rows[$dir . 'rows'] = $this->makeArray($collection);
+                    return $this->makePrevNext($dir);
+                }
+            }
+
+        }
+
+        $this->ph[$dir] = $this->getChunk($this->config[$dir . 'Tpl'], $row);
+
+        return '';
+
+    }
+
+    function makeFirstLast($pos)
+    {
+        $collection = $this->getSiblings($pos, '_default', false, 1);
+        $rows = $this->makeArray($collection);
+        $row = $rows[0];
+        $row['_isself'] = $row['id'] == $this->config['id'] ? '1' : '0';
+        $this->ph[$pos] = $this->getChunk($this->config[$pos . 'Tpl'], $row);
+        return '';
+
+    }
+
+    function getChunks($tpl, $rows, $output = array())
+    {
+
+        foreach ($rows as $row) {
+
+            //print_r($ph);
+            $output[] = $this->getChunk($tpl, $row);
+        }
+
+        return $output;
+    }
+
+    function getSiblings($dir, $parent = '_default', $fromhere = true, $limit =
+        '_default')
+    {
+
+        $parent = $parent == '_default' ? $this->config['parent'] : $parent;
+        $limit = $limit == '_default' ? $this->config['limit'] : $limit;
+
+        //$sortby = $this->config['sortBy'];
+        $id = $this->config['id'];
+        
+        $c = $this->modx->newQuery('modResource');
+        if (empty($this->config['showDeleted'])) {
+            $c->where(array('deleted' => '0'));
+        }
+        if (empty($this->config['showUnpublished'])) {
+            $c->where(array('published' => '1'));
+        }
+        if (empty($this->config['showHidden'])) {
+            $c->where(array('hidemenu' => '0'));
+        }
+
+        $c->where(array('parent' => $parent));
+
+        if ($dir != 'first' && $dir != 'last') {
+            $c->where(array('id:!=' => $id));
+        }
+
+        switch ($dir) {
+
+            case 'first':
+            case 'next':
+            case 'up':
+                $this->sort($c);
+                $sortvalue = $this->resource->get($this->sortfields[0]);
+                if ($fromhere) {
+                    $c->where("IF(".$this->sortfields[0]." = " . $sortvalue . ",id > " . $id . ",".$this->sortfields[0]." >" . $sortvalue . ")", xPDOQuery::SQL_AND);
+                }
+                
+                break;
+
+            case 'last':
+            case 'prev':
+            case 'down':
+                $this->sort($c,true);
+                $sortvalue = $this->resource->get($this->sortfields[0]);
+                if ($fromhere) {
+                    $c->where("IF(".$this->sortfields[0]." = " . $sortvalue . ",id < " . $id . ",".$this->sortfields[0]." <" . $sortvalue . ")", xPDOQuery::SQL_AND);
+                }
+
+                break;
+        }
+
+        if ($limit) {
+            $c->limit($limit);
+        }
+        //$c->prepare();
+        //echo $c->toSql();
+        if ($collection = $this->modx->getCollection('modResource', $c)) {
+            return $collection;
+        } else {
+            return false;
+        }
+
+    }
+
+    function sort(& $c,$reverse=false)
+    {
+        $sortby=$this->config['sortBy'];
+        if (!empty($sortby)) {
+            if (strpos($sortby, '{') === 0) {
+                $sorts = $this->modx->fromJSON($sortby);
+            }
+           if (is_array($sorts)) {
+                $this->sortfields = array();
+                while (list($sort, $dir) = each($sorts)) {
+                    $this->sortfields[]=$sort;
+                    if ($reverse){
+                        $dir = $dir == 'ASC' ? 'DESC':'ASC';
+                    }
+                    $c->sortby($sort, $dir);
+                }
+            }
+        }
+        return;
+    }
+
+
+    /**
+     * Gets a Chunk and caches it; also falls back to file-based templates
+     * for easier debugging.
+     *
+     * @access public
+     * @param string $name The name of the Chunk
+     * @param array $properties The properties for the Chunk
+     * @return string The processed content of the Chunk
+     */
+    public function getChunk($name, array $properties = array())
+    {
+        $chunk = null;
+        if (!isset($this->chunks[$name])) {
+            $chunk = $this->modx->getObject('modChunk', array('name' => $name), true);
+            if (empty($chunk)) {
+                $chunk = $this->_getTplChunk($name, $this->config['chunkSuffix']);
+                if ($chunk == false)
+                    return false;
+            }
+            $this->chunks[$name] = $chunk->getContent();
+        } else {
+            $o = $this->chunks[$name];
+            $chunk = $this->modx->newObject('modChunk');
+            $chunk->setContent($o);
+        }
+        $chunk->setCacheable(false);
+        return $chunk->process($properties);
+    }
+
+    /**
+     * Returns a modChunk object from a template file.
+     *
+     * @access private
+     * @param string $name The name of the Chunk. Will parse to name.chunk.html by default.
+     * @param string $suffix The suffix to add to the chunk filename.
+     * @return modChunk/boolean Returns the modChunk object if found, otherwise
+     * false.
+     */
+    private function _getTplChunk($name, $suffix = '.chunk.tpl')
+    {
+        $chunk = false;
+        $f = $this->config['chunksPath'] . strtolower($name) . $suffix;
+        if (file_exists($f)) {
+            $o = file_get_contents($f);
+            $chunk = $this->modx->newObject('modChunk');
+            $chunk->set('name', $name);
+            $chunk->setContent($o);
+        }
+        return $chunk;
+    }
+
+}
