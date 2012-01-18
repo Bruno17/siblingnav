@@ -6,10 +6,8 @@ class SiblingNav
     function __construct(modX & $modx, array $config = array())
     {
         $this->modx = &$modx;
-        $corePath = $this->modx->getOption('siblingnav.core_path', $config, $this->modx->
-            getOption('core_path') . 'components/siblingnav/');
-        $assetsUrl = $this->modx->getOption('siblingnav.assets_url', $config, $this->
-            modx->getOption('assets_url') . 'components/siblingnav/');
+        $corePath = $this->modx->getOption('siblingnav.core_path', $config, $this->modx->getOption('core_path') . 'components/siblingnav/');
+        $assetsUrl = $this->modx->getOption('siblingnav.assets_url', $config, $this->modx->getOption('assets_url') . 'components/siblingnav/');
 
         $default['rowTpl'] = 'snrow';
         $default['selfTpl'] = 'snself';
@@ -56,13 +54,16 @@ class SiblingNav
     function run()
     {
         if ($this->resource = $this->modx->getObject('modResource', $this->config['id'])) {
+            $this->rows['prevrows'] = array();
+            $this->rows['nextrows'] = array();
 
             $this->config['parent'] = $this->resource->get('parent');
-            $prevrows = $this->getSiblings('down');
-            $nextrows = $this->getSiblings('up');
-
-            $this->rows['prevrows'] = $this->makeArray($prevrows);
-            $this->rows['nextrows'] = $this->makeArray($nextrows);
+            if ($prevrows = $this->getSiblings('down')) {
+                $this->rows['prevrows'] = $this->makeArray($prevrows);
+            }
+            if ($nextrows = $this->getSiblings('up')) {
+                $this->rows['nextrows'] = $this->makeArray($nextrows);
+            }
             $this->makePrevNext('prev');
             $this->makePrevNext('next');
             $this->makeFirstLast('first');
@@ -70,12 +71,9 @@ class SiblingNav
 
             $this->limitRows();
 
-            $prevlinks = $this->getChunks($this->config['rowTpl'], array_reverse($this->
-                rows['prevrows']));
-            $this->ph['self'] = $this->getChunk($this->config['selfTpl'], $this->resource->
-                toArray());
-            $nextlinks = $this->getChunks($this->config['rowTpl'], $this->rows['nextrows'],
-                $output);
+            $prevlinks = $this->getChunks($this->config['rowTpl'], array_reverse($this->rows['prevrows']));
+            $this->ph['self'] = $this->getChunk($this->config['selfTpl'], $this->resource->toArray());
+            $nextlinks = $this->getChunks($this->config['rowTpl'], $this->rows['nextrows'], $output);
 
             $this->ph['prevlinks'] = implode('', $prevlinks);
             $this->ph['nextlinks'] = implode('', $nextlinks);
@@ -132,6 +130,8 @@ class SiblingNav
         $rows = $this->rows[$dir . 'rows'];
         $row = array();
         $row['_isactive'] = '0';
+        $row['id'] = '0';
+        
         if (count($rows) > 0) {
             $row = $rows[0];
             $row['_isactive'] = '1';
@@ -154,8 +154,9 @@ class SiblingNav
 
                 } else {
                     $parent = $parents[$key];
-                    $collection = $this->getSiblings($dir, $parent, false);
-                    $this->rows[$dir . 'rows'] = $this->makeArray($collection);
+                    if ($collection = $this->getSiblings($dir, $parent, false)) {
+                        $this->rows[$dir . 'rows'] = $this->makeArray($collection);
+                    }
                     return $this->makePrevNext($dir);
                 }
             }
@@ -170,11 +171,13 @@ class SiblingNav
 
     function makeFirstLast($pos)
     {
-        $collection = $this->getSiblings($pos, '_default', false, 1);
-        $rows = $this->makeArray($collection);
-        $row = $rows[0];
-        $row['_isself'] = $row['id'] == $this->config['id'] ? '1' : '0';
-        $this->ph[$pos] = $this->getChunk($this->config[$pos . 'Tpl'], $row);
+        if ($collection = $this->getSiblings($pos, '_default', false, 1)) {
+            $rows = $this->makeArray($collection);
+            $row = $rows[0];
+            $row['_isself'] = $row['id'] == $this->config['id'] ? '1' : '0';
+            $this->ph[$pos] = $this->getChunk($this->config[$pos . 'Tpl'], $row);
+        }
+
         return '';
 
     }
@@ -182,17 +185,17 @@ class SiblingNav
     function getChunks($tpl, $rows, $output = array())
     {
 
-        foreach ($rows as $row) {
+        if (count($rows) > 0) {
+            foreach ($rows as $row) {
 
-            //print_r($ph);
-            $output[] = $this->getChunk($tpl, $row);
+                //print_r($ph);
+                $output[] = $this->getChunk($tpl, $row);
+            }
         }
-
         return $output;
     }
 
-    function getSiblings($dir, $parent = '_default', $fromhere = true, $limit =
-        '_default')
+    function getSiblings($dir, $parent = '_default', $fromhere = true, $limit = '_default')
     {
 
         $parent = $parent == '_default' ? $this->config['parent'] : $parent;
@@ -200,7 +203,7 @@ class SiblingNav
 
         //$sortby = $this->config['sortBy'];
         $id = $this->config['id'];
-        
+
         $c = $this->modx->newQuery('modResource');
         if (empty($this->config['showDeleted'])) {
             $c->where(array('deleted' => '0'));
@@ -224,20 +227,36 @@ class SiblingNav
             case 'next':
             case 'up':
                 $this->sort($c);
-                $sortvalue = $this->resource->get($this->sortfields[0]);
+
                 if ($fromhere) {
-                    $c->where("IF(".$this->sortfields[0]." = " . $sortvalue . ",id > " . $id . ",".$this->sortfields[0]." >" . $sortvalue . ")", xPDOQuery::SQL_AND);
+                    $sortfield1 = $this->sortfields[0];
+                    $sortfield2 = $this->sortfields[1];
+                    $sortvalue1 = $this->resource->get($sortfield1);
+                    $sortvalue2 = $this->resource->get($sortfield2);
+                    $greater_lower1 = $this->sortdirs[0] == 'DESC' ? '<' : '>';
+                    $greater_lower2 = $this->sortdirs[1] == 'DESC' ? '<' : '>';
+
+                    //select resources to the right - fall back to filter by the second sortfield (default:id), on duplicate sortvalues
+                    $c->where('IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortfield2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortfield1 . ' ' . $greater_lower1 .
+                        ' ' . $this->modx->quote($sortvalue1) . ')', xPDOQuery::SQL_AND);
                 }
-                
+
                 break;
 
             case 'last':
             case 'prev':
             case 'down':
-                $this->sort($c,true);
-                $sortvalue = $this->resource->get($this->sortfields[0]);
+                $this->sort($c, true);
                 if ($fromhere) {
-                    $c->where("IF(".$this->sortfields[0]." = " . $sortvalue . ",id < " . $id . ",".$this->sortfields[0]." <" . $sortvalue . ")", xPDOQuery::SQL_AND);
+                    $sortfield1 = $this->sortfields[0];
+                    $sortfield2 = $this->sortfields[1];
+                    $sortvalue1 = $this->resource->get($sortfield1);
+                    $sortvalue2 = $this->resource->get($sortfield2);
+                    $greater_lower1 = $this->sortdirs[0] == 'DESC' ? '<' : '>';
+                    $greater_lower2 = $this->sortdirs[1] == 'DESC' ? '<' : '>';
+                    //select resources to the left - fall back to filter by the second sortfield (default:id), on duplicate sortvalues
+                    $c->where('IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortfield2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortfield1 . ' ' . $greater_lower1 .
+                        ' ' . $this->modx->quote($sortvalue1) . ')', xPDOQuery::SQL_AND);
                 }
 
                 break;
@@ -247,7 +266,7 @@ class SiblingNav
             $c->limit($limit);
         }
         //$c->prepare();
-        //echo $c->toSql();
+        //echo $c->toSql() . '<br />';
         if ($collection = $this->modx->getCollection('modResource', $c)) {
             return $collection;
         } else {
@@ -256,21 +275,27 @@ class SiblingNav
 
     }
 
-    function sort(& $c,$reverse=false)
+    function sort(&$c, $reverse = false)
     {
-        $sortby=$this->config['sortBy'];
+        $sortby = $this->config['sortBy'];
         if (!empty($sortby)) {
             if (strpos($sortby, '{') === 0) {
                 $sorts = $this->modx->fromJSON($sortby);
             }
-           if (is_array($sorts)) {
+            if (is_array($sorts)) {
                 $this->sortfields = array();
+                $this->sortdirs = array();
                 while (list($sort, $dir) = each($sorts)) {
-                    $this->sortfields[]=$sort;
-                    if ($reverse){
-                        $dir = $dir == 'ASC' ? 'DESC':'ASC';
+                    if ($reverse) {
+                        $dir = $dir == 'ASC' ? 'DESC' : 'ASC';
                     }
+                    $this->sortfields[] = $sort;
+                    $this->sortdirs[] = $dir;
                     $c->sortby($sort, $dir);
+                }
+                if (count($this->sortfields) == 1) {
+                    $this->sortfields[] = 'id';
+                    $this->sortdirs[] = $this->sortdirs[0];
                 }
             }
         }
@@ -294,8 +319,7 @@ class SiblingNav
             $chunk = $this->modx->getObject('modChunk', array('name' => $name), true);
             if (empty($chunk)) {
                 $chunk = $this->_getTplChunk($name, $this->config['chunkSuffix']);
-                if ($chunk == false)
-                    return false;
+                if ($chunk == false) return false;
             }
             $this->chunks[$name] = $chunk->getContent();
         } else {
