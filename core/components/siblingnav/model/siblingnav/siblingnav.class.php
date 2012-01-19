@@ -54,6 +54,33 @@ class SiblingNav
     function run()
     {
         if ($this->resource = $this->modx->getObject('modResource', $this->config['id'])) {
+            if ($this->config['parents']) {
+                $parents = explode (',',$this->config['parents']);
+                $parentsWithChilds = array();
+                $c = $this->modx->newQuery('modResource');
+                $c->where(array('id:IN'=>$parents));
+                if ($collection = $this->modx->getIterator('modResource',$c)){
+                    foreach ($collection as $object){
+                        if ($object->hasChildren()){
+                            $parentsWithChilds[]=$object->get('id');
+                        }        
+                    }
+                }
+                foreach ($parents as $parent){
+                    if (in_array($parent,$parentsWithChilds)){
+                        $sortedparents[] = $parent; 
+                    }
+                }
+                if (count($sortedparents)>0){
+                    $this->config['parents'] = implode(',',$sortedparents);
+                }
+                else{
+                    $this->config['parents'] = false;
+                }
+                
+            }
+            
+            
             $this->rows['prevrows'] = array();
             $this->rows['nextrows'] = array();
 
