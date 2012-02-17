@@ -103,7 +103,7 @@ class SiblingNav
             $nextlinks = $this->getChunks($this->config['rowTpl'], $this->rows['nextrows'], $output);
 
             $this->ph['prevlinks'] = implode('', $prevlinks);
-            $this->ph['nextlinks'] = implode('', $nextlinks);
+            //$this->ph['nextlinks'] = implode('', $nextlinks);
             //$this -> ph['rows'] = implode('', $output);
 
             $this->modx->setPlaceholders($this->ph, $this->config['placeholderPrefix']);
