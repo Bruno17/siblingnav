@@ -54,7 +54,8 @@ class SiblingNav
     function run()
     {
         if ($this->resource = $this->modx->getObject('modResource', $this->config['id'])) {
-            if ($this->config['parents']) {
+            $this->rawValues = $this->resource->toArray('',true);
+			if ($this->config['parents']) {
                 $parents = explode (',',$this->config['parents']);
                 $parentsWithChilds = array();
                 $c = $this->modx->newQuery('modResource');
@@ -83,27 +84,32 @@ class SiblingNav
             
             $this->rows['prevrows'] = array();
             $this->rows['nextrows'] = array();
+			$this->ph['prevlinks'] = '';
+			$this->ph['nextlinks'] = ''; 
 
             $this->config['parent'] = $this->resource->get('parent');
-            if ($prevrows = $this->getSiblings('down')) {
+		    if ($prevrows = $this->getSiblings('down')) {
                 $this->rows['prevrows'] = $this->makeArray($prevrows);
-            }
+                $prevlinks = $this->getChunks($this->config['rowTpl'], array_reverse($this->rows['prevrows']));
+    		    $this->ph['prevlinks'] = implode('', $prevlinks);
+		    }
             if ($nextrows = $this->getSiblings('up')) {
                 $this->rows['nextrows'] = $this->makeArray($nextrows);
-            }
-            $this->makePrevNext('prev');
+			    $nextlinks = $this->getChunks($this->config['rowTpl'], $this->rows['nextrows'], $output);
+			    $this->ph['nextlinks'] = implode('', $nextlinks);
+            }			
+
+            
+			$this->makePrevNext('prev');
             $this->makePrevNext('next');
             $this->makeFirstLast('first');
             $this->makeFirstLast('last');
-
-            $this->limitRows();
-
-            $prevlinks = $this->getChunks($this->config['rowTpl'], array_reverse($this->rows['prevrows']));
+			
+		    $this->limitRows();			
+            
             $this->ph['self'] = $this->getChunk($this->config['selfTpl'], $this->resource->toArray());
-            $nextlinks = $this->getChunks($this->config['rowTpl'], $this->rows['nextrows'], $output);
-
-            $this->ph['prevlinks'] = implode('', $prevlinks);
-            $this->ph['nextlinks'] = implode('', $nextlinks);
+          
+            
             //$this -> ph['rows'] = implode('', $output);
 
             $this->modx->setPlaceholders($this->ph, $this->config['placeholderPrefix']);
@@ -248,8 +254,10 @@ class SiblingNav
             $c->where(array('id:!=' => $id));
         }
 
+		//echo '<br /><h2>'.$dir . '</h2><br />';
+		
         switch ($dir) {
-
+               
             case 'first':
             case 'next':
             case 'up':
@@ -258,14 +266,17 @@ class SiblingNav
                 if ($fromhere) {
                     $sortfield1 = $this->sortfields[0];
                     $sortfield2 = $this->sortfields[1];
-                    $sortvalue1 = $this->resource->get($sortfield1);
-                    $sortvalue2 = $this->resource->get($sortfield2);
+					
+                    $sortvalue1 = $this->rawValues[$sortfield1];
+                    $sortvalue2 = $this->rawValues[$sortfield2];
                     $greater_lower1 = $this->sortdirs[0] == 'DESC' ? '<' : '>';
                     $greater_lower2 = $this->sortdirs[1] == 'DESC' ? '<' : '>';
 
                     //select resources to the right - fall back to filter by the second sortfield (default:id), on duplicate sortvalues
-                    $c->where('IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortfield2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortfield1 . ' ' . $greater_lower1 .
-                        ' ' . $this->modx->quote($sortvalue1) . ')', xPDOQuery::SQL_AND);
+                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortfield2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortfield1 . ' ' . $greater_lower1 .
+                        ' ' . $this->modx->quote($sortvalue1) . ')';
+					//echo $where.'<br />';	
+					$c->where($where, xPDOQuery::SQL_AND);
                 }
 
                 break;
@@ -277,13 +288,15 @@ class SiblingNav
                 if ($fromhere) {
                     $sortfield1 = $this->sortfields[0];
                     $sortfield2 = $this->sortfields[1];
-                    $sortvalue1 = $this->resource->get($sortfield1);
-                    $sortvalue2 = $this->resource->get($sortfield2);
+                    $sortvalue1 = $this->rawValues[$sortfield1];
+                    $sortvalue2 = $this->rawValues[$sortfield2];
                     $greater_lower1 = $this->sortdirs[0] == 'DESC' ? '<' : '>';
                     $greater_lower2 = $this->sortdirs[1] == 'DESC' ? '<' : '>';
                     //select resources to the left - fall back to filter by the second sortfield (default:id), on duplicate sortvalues
-                    $c->where('IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortfield2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortfield1 . ' ' . $greater_lower1 .
-                        ' ' . $this->modx->quote($sortvalue1) . ')', xPDOQuery::SQL_AND);
+                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortfield2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortfield1 . ' ' . $greater_lower1 .
+                        ' ' . $this->modx->quote($sortvalue1) . ')';
+                    //echo $where.'<br />';						
+					$c->where($where, xPDOQuery::SQL_AND);
                 }
 
                 break;
@@ -292,7 +305,7 @@ class SiblingNav
         if ($limit) {
             $c->limit($limit);
         }
-        //$c->prepare();
+        $c->prepare();
         //echo $c->toSql() . '<br />';
         if ($collection = $this->modx->getCollection('modResource', $c)) {
             return $collection;
@@ -312,18 +325,24 @@ class SiblingNav
             if (is_array($sorts)) {
                 $this->sortfields = array();
                 $this->sortdirs = array();
-                while (list($sort, $dir) = each($sorts)) {
+				while (list($sort, $dir) = each($sorts)) {
                     if ($reverse) {
                         $dir = $dir == 'ASC' ? 'DESC' : 'ASC';
                     }
+					//echo $sort.' '.$dir.'<br />';
                     $this->sortfields[] = $sort;
                     $this->sortdirs[] = $dir;
                     $c->sortby($sort, $dir);
                 }
-                if (count($this->sortfields) == 1) {
-                    $this->sortfields[] = 'id';
-                    $this->sortdirs[] = $this->sortdirs[0];
-                }
+                if (!in_array('id',$this->sortfields)) {
+				    $sort = 'id';
+					$dir = $this->sortdirs[0];
+					//echo $sort.' '.$dir.'<br />';
+                    $this->sortfields[] = $sort;
+                    $this->sortdirs[] = $dir;
+                    $c->sortby($sort, $dir);
+                } 
+				
             }
         }
         return;
