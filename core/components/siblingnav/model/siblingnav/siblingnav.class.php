@@ -108,7 +108,9 @@ class SiblingNav
 		    $this->limitRows();			
             
             $this->ph['self'] = $this->getChunk($this->config['selfTpl'], $this->resource->toArray());
-          
+ 
+            $this->ph['current'] = count($this->rows['prevrows']) + 1;
+            $this->ph['total'] = count($this->rows['prevrows']) + count($this->rows['nextrows']) + 1;
             
             //$this -> ph['rows'] = implode('', $output);
 
