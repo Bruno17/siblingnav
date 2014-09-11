@@ -1,5 +1,11 @@
 Changelog for Siblingnav.
 
+Siblingnav 1.0.1
+==============
+- fix sorting
+- fix processing row-chunk, when result is empty.
+
+
 Siblingnav 1.0.0
 ==============
 - Initial release.
