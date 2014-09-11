@@ -1,5 +1,10 @@
 Changelog for Siblingnav.
 
+Siblingnav 1.1.0
+==============
+- property &exclude
+- property &where
+
 Siblingnav 1.0.1
 ==============
 - fix sorting
