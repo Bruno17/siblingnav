@@ -1,5 +1,11 @@
 Changelog for Siblingnav.
 
+Siblingnav 1.2.0
+==============
+- property &debug
+- property &infinitLoop
+- property &joins
+
 Siblingnav 1.1.0
 ==============
 - property &exclude
