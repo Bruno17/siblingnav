@@ -23,7 +23,7 @@ class SiblingNav {
         $default['showHidden'] = 0;
         $default['selectfields'] = ''; //select only specific fields
         $default['debug'] = 0; //debug mode
-        $default['loopInfinite'] = 0;//loop from Beginnning when at last sibling
+        $default['infinitLoop'] = 0;//loop from Beginnning when at last sibling
 
         //$default['level'] = 0;
         //$default['includeDocs'] = '';
