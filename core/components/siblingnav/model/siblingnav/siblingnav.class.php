@@ -23,6 +23,7 @@ class SiblingNav {
         $default['showHidden'] = 0;
         $default['selectfields'] = ''; //select only specific fields
         $default['debug'] = 0; //debug mode
+        $default['loopInfinite'] = 0;//loop from Beginnning when at last sibling
 
         //$default['level'] = 0;
         //$default['includeDocs'] = '';
@@ -100,11 +101,12 @@ class SiblingNav {
             }
 
 
-            $this->makePrevNext('prev');
-            $this->makePrevNext('next');
+
             $this->makeFirstLast('first');
             $this->makeFirstLast('last');
-
+            $this->makePrevNext('prev');
+            $this->makePrevNext('next');
+            
             $this->limitRows();
 
             $this->rows['self'] = $this->resource->toArray();
@@ -180,16 +182,29 @@ class SiblingNav {
                         break;
                 }
                 if ($key < 0 || $key > (count($parents) - 1)) {
-
+                    //there aren't more parents
                 } else {
                     $parent = $parents[$key];
                     if ($collection = $this->getSiblings($dir, $parent, false)) {
-                        $this->rows[$dir . 'rows'] = $collection;
+                        $this->rows[$dir . 'links'] = $collection;
                     }
                     return $this->makePrevNext($dir);
                 }
             }
-
+            //if still here and no rows found check for infinitLoop - setting
+            if (!empty($this->config['infinitLoop'])){
+                switch ($dir) {
+                    case 'next':
+                        $row = $this->rows['first'];
+                        $row['_isactive'] = 1;
+                        break;
+                    case 'prev':
+                        $row = $this->rows['last'];
+                        $row['_isactive'] = 1;
+                        break;
+                }                
+            }
+            
         }
         $this->rows[$dir] = $row;
         $this->ph[$dir] = $this->getChunk($this->config[$dir . 'Tpl'], $row);
