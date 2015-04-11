@@ -21,13 +21,15 @@ class SiblingNav {
         $default['showDeleted'] = 0;
         $default['showUnpublished'] = 0;
         $default['showHidden'] = 0;
+        $default['selectfields'] = ''; //select only specific fields
+        $default['debug'] = 0; //debug mode
 
         //$default['level'] = 0;
         //$default['includeDocs'] = '';
         $default['exclude'] = '';
         //$default['ph'] = false;
         //$default['debug'] = false;
-        $default['ignoreHidden'] = false;
+        //$default['ignoreHidden'] = false;
         //$default['hideSubMenus'] = false;
         //$default['useWeblinkUrl'] = true;
         //$default['fullLink'] = false;
@@ -51,6 +53,7 @@ class SiblingNav {
     }
 
     function run() {
+
         if ($this->resource = $this->modx->getObject('modResource', $this->config['id'])) {
             $this->rawValues = $this->resource->toArray('', true);
             if ($this->config['parents']) {
@@ -79,20 +82,20 @@ class SiblingNav {
             }
 
 
-            $this->rows['prevrows'] = array();
-            $this->rows['nextrows'] = array();
+            $this->rows['prevlinks'] = array();
+            $this->rows['nextlinks'] = array();
             $this->ph['prevlinks'] = '';
             $this->ph['nextlinks'] = '';
 
             $this->config['parent'] = $this->resource->get('parent');
             if ($prevrows = $this->getSiblings('down')) {
-                $this->rows['prevrows'] = $this->makeArray($prevrows);
-                $prevlinks = $this->getChunks($this->config['rowTpl'], array_reverse($this->rows['prevrows']));
+                $this->rows['prevlinks'] = $prevrows;
+                $prevlinks = $this->getChunks($this->config['rowTpl'], array_reverse($this->rows['prevlinks']));
                 $this->ph['prevlinks'] = implode('', $prevlinks);
             }
             if ($nextrows = $this->getSiblings('up')) {
-                $this->rows['nextrows'] = $this->makeArray($nextrows);
-                $nextlinks = $this->getChunks($this->config['rowTpl'], $this->rows['nextrows'], $output);
+                $this->rows['nextlinks'] = $nextrows;
+                $nextlinks = $this->getChunks($this->config['rowTpl'], $this->rows['nextlinks'], $output);
                 $this->ph['nextlinks'] = implode('', $nextlinks);
             }
 
@@ -104,10 +107,18 @@ class SiblingNav {
 
             $this->limitRows();
 
-            $this->ph['self'] = $this->getChunk($this->config['selfTpl'], $this->resource->toArray());
+            $this->rows['self'] = $this->resource->toArray();
+            $this->ph['self'] = $this->getChunk($this->config['selfTpl'], $this->rows['self']);
 
 
             //$this -> ph['rows'] = implode('', $output);
+
+            if (!empty($this->config['debug'])) {
+                foreach ($this->ph as $key => $ph) {
+                    echo '<h3> Output for placeholder ' . $this->config['placeholderPrefix'] . $key . '</h3>';
+                    echo '<pre>' . print_r($this->rows[$key], 1) . '</pre>';
+                }
+            }
 
             $this->modx->setPlaceholders($this->ph, $this->config['placeholderPrefix']);
 
@@ -116,19 +127,10 @@ class SiblingNav {
         return '';
     }
 
-    function makeArray($collection) {
-
-        $rows = array();
-        foreach ($collection as $object) {
-            $rows[] = $object->toArray();
-        }
-        return $rows;
-    }
-
     function limitRows() {
         if ($this->config['limit']) {
-            $prevrows = $this->rows['prevrows'];
-            $nextrows = $this->rows['nextrows'];
+            $prevrows = $this->rows['prevlinks'];
+            $nextrows = $this->rows['nextlinks'];
             $limit = $this->config['limit'];
             $prevcount = count($prevrows);
             $nextcount = count($nextrows);
@@ -144,8 +146,8 @@ class SiblingNav {
                 $left = $prevcount;
             }
 
-            $this->rows['prevrows'] = array_slice($prevrows, 0, $left);
-            $this->rows['nextrows'] = array_slice($nextrows, 0, $right);
+            $this->rows['prevlinks'] = array_slice($prevrows, 0, $left);
+            $this->rows['nextlinks'] = array_slice($nextrows, 0, $right);
 
         }
 
@@ -154,7 +156,7 @@ class SiblingNav {
     }
 
     function makePrevNext($dir) {
-        $rows = $this->rows[$dir . 'rows'];
+        $rows = $this->rows[$dir . 'links'];
         $row = array();
         $row['_isactive'] = '0';
         $row['id'] = '0';
@@ -182,14 +184,14 @@ class SiblingNav {
                 } else {
                     $parent = $parents[$key];
                     if ($collection = $this->getSiblings($dir, $parent, false)) {
-                        $this->rows[$dir . 'rows'] = $this->makeArray($collection);
+                        $this->rows[$dir . 'rows'] = $collection;
                     }
                     return $this->makePrevNext($dir);
                 }
             }
 
         }
-
+        $this->rows[$dir] = $row;
         $this->ph[$dir] = $this->getChunk($this->config[$dir . 'Tpl'], $row);
 
         return '';
@@ -198,10 +200,11 @@ class SiblingNav {
 
     function makeFirstLast($pos) {
         if ($collection = $this->getSiblings($pos, '_default', false, 1)) {
-            $rows = $this->makeArray($collection);
+            $rows = $collection;
             $row = $rows[0];
             $row['_isself'] = $row['id'] == $this->config['id'] ? '1' : '0';
             $this->ph[$pos] = $this->getChunk($this->config[$pos . 'Tpl'], $row);
+            $this->rows[$pos] = $row;
         }
 
         return '';
@@ -209,11 +212,8 @@ class SiblingNav {
     }
 
     function getChunks($tpl, $rows, $output = array()) {
-
         if (count($rows) > 0) {
             foreach ($rows as $row) {
-
-                //print_r($ph);
                 $output[] = $this->getChunk($tpl, $row);
             }
         }
@@ -227,8 +227,12 @@ class SiblingNav {
 
         //$sortby = $this->config['sortBy'];
         $id = $this->config['id'];
+        $classname = 'modResource';
+        $selectfields = $this->modx->getOption('selectfields', $this->config, '');
+        $selectfields = !empty($selectfields) ? explode(',', $selectfields) : null;
+        $c = $this->modx->newQuery($classname);
+        $c->select($this->modx->getSelectColumns($classname, $classname, '', $selectfields));
 
-        $c = $this->modx->newQuery('modResource');
         if (empty($this->config['showDeleted'])) {
             $c->where(array('deleted' => '0'));
         }
@@ -239,13 +243,13 @@ class SiblingNav {
             $c->where(array('hidemenu' => '0'));
         }
         if (!empty($this->config['exclude'])) {
-            $exclude = explode(',',$this->config['exclude']);
+            $exclude = explode(',', $this->config['exclude']);
             $c->where(array('id:NOT IN' => $exclude));
         }
         if (!empty($this->config['where'])) {
             $where = $this->modx->fromJson($this->config['where']);
             $c->where($where);
-        }        
+        }
 
         $c->where(array('parent' => $parent));
 
@@ -305,13 +309,28 @@ class SiblingNav {
             $c->limit($limit);
         }
         $c->prepare();
-        //echo $c->toSql() . '<br />';
-        if ($collection = $this->modx->getCollection('modResource', $c)) {
+
+        if (!empty($this->config['debug'])) {
+            echo '<h3> Query for ' . $dir . '</h3>';
+            echo $c->toSql() . '<br />';
+        }
+
+        if ($collection = $this->getCollection($c)) {
             return $collection;
         } else {
             return false;
         }
 
+    }
+
+    public function getCollection($c) {
+        $rows = array();
+        if ($c->stmt->execute()) {
+            if (!$rows = $c->stmt->fetchAll(PDO::FETCH_ASSOC)) {
+                $rows = array();
+            }
+        }
+        return $rows;
     }
 
     function sort(&$c, $reverse = false) {
