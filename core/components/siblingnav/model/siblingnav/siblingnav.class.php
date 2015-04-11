@@ -24,6 +24,7 @@ class SiblingNav {
         $default['selectfields'] = ''; //select only specific fields
         $default['debug'] = 0; //debug mode
         $default['infinitLoop'] = 0;//loop from Beginnning when at last sibling
+        $default['joins'] = 0;//join to other objects
 
         //$default['level'] = 0;
         //$default['includeDocs'] = '';
@@ -245,8 +246,14 @@ class SiblingNav {
         $classname = 'modResource';
         $selectfields = $this->modx->getOption('selectfields', $this->config, '');
         $selectfields = !empty($selectfields) ? explode(',', $selectfields) : null;
+        $joins = $this->modx->getOption('joins', $this->config, array());
+        $joins = !empty($joins) && !is_array($joins) ? $this->modx->fromJSON($joins) : $joins;        
         $c = $this->modx->newQuery($classname);
         $c->select($this->modx->getSelectColumns($classname, $classname, '', $selectfields));
+        
+        if (is_array($joins) && count($joins) > 0) {
+            $this->prepareJoins($classname, $joins, $c);
+        }        
 
         if (empty($this->config['showDeleted'])) {
             $c->where(array('deleted' => '0'));
@@ -429,5 +436,47 @@ class SiblingNav {
         }
         return $chunk;
     }
+    
+    public function prepareJoins($classname, $joins, &$c) {
+
+        if (is_array($joins)) {
+            foreach ($joins as $join) {
+                $jalias = $this->modx->getOption('alias', $join, '');
+                $type = $this->modx->getOption('type', $join, 'left');
+                $joinclass = $this->modx->getOption('classname', $join, '');
+                $selectfields = $this->modx->getOption('selectfields', $join, '');
+                $on = $this->modx->getOption('on', $join, null);
+                if (!empty($jalias)) {
+                    if (empty($joinclass) && $fkMeta = $c->xpdo->getFKDefinition($classname, $jalias)) {
+                        $joinclass = $fkMeta['class'];
+                    }
+                    if (!empty($joinclass)) {
+                        /*
+                        if ($joinFkMeta = $modx->getFKDefinition($joinclass, 'Resource')){
+                        $localkey = $joinFkMeta['local'];
+                        }    
+                        */
+                        $selectfields = !empty($selectfields) ? explode(',', $selectfields) : null;
+                        switch ($type) {
+                            case 'left':
+                                $c->leftjoin($joinclass, $jalias, $on);
+                                break;
+                            case 'right':
+                                $c->rightjoin($joinclass, $jalias, $on);
+                                break;
+                            case 'inner':
+                                $c->innerjoin($joinclass, $jalias, $on);
+                                break;
+                            default:
+                                $c->leftjoin($joinclass, $jalias, $on);
+                                break;
+                        }
+
+                        $c->select($c->xpdo->getSelectColumns($joinclass, $jalias, $jalias . '_', $selectfields));
+                    }
+                }
+            }
+        }
+    }    
 
 }
