@@ -1,4 +1,7 @@
 Changelog for Siblingnav.
+Siblingnav 1.2.1
+==============
+- property &sortCasts
 
 Siblingnav 1.2.0
 ==============

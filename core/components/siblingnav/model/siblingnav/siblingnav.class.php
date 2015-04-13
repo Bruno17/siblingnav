@@ -25,6 +25,7 @@ class SiblingNav {
         $default['debug'] = 0; //debug mode
         $default['infinitLoop'] = 0; //loop from Beginnning when at last sibling
         $default['joins'] = 0; //join to other objects
+        $default['sortCasts'] = ''; //commasepareted list of cast sortby - fields example: &sortCasts=`DATE,SIGNED`
 
         //$default['level'] = 0;
         //$default['includeDocs'] = '';
