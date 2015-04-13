@@ -409,6 +409,8 @@ class SiblingNav {
                     if ($reverse) {
                         $dir = $dir == 'ASC' ? 'DESC' : 'ASC';
                     }
+                    $sort = $sort == 'id' ? 'modResource.id' : $sort; 
+                    
                     //echo $sort.' '.$dir.'<br />';
                     if (!empty($sortcasts[$i])){
                        $sortby = 'CAST(' . $sort .' AS ' .$sortcasts[$i] . ')'; 
@@ -424,7 +426,7 @@ class SiblingNav {
                     $i++;
                     
                 }
-                if (!in_array('id', $this->sortfields) && !in_array('modResource.id', $this->sortfields)) {
+                if (!in_array('modResource.id', $this->sortfields)) {
                     $sort = 'modResource.id';
                     $dir = $this->sortdirs[0];
                     //echo $sort.' '.$dir.'<br />';
