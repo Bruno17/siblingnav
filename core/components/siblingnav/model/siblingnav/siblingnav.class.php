@@ -23,8 +23,8 @@ class SiblingNav {
         $default['showHidden'] = 0;
         $default['selectfields'] = ''; //select only specific fields
         $default['debug'] = 0; //debug mode
-        $default['infinitLoop'] = 0;//loop from Beginnning when at last sibling
-        $default['joins'] = 0;//join to other objects
+        $default['infinitLoop'] = 0; //loop from Beginnning when at last sibling
+        $default['joins'] = 0; //join to other objects
 
         //$default['level'] = 0;
         //$default['includeDocs'] = '';
@@ -36,7 +36,7 @@ class SiblingNav {
         //$default['useWeblinkUrl'] = true;
         //$default['fullLink'] = false;
         $default['sortOrder'] = 'ASC';
-        $default['sortBy'] = '{"menuindex":"ASC","id":"ASC"}';
+        $default['sortBy'] = '{"menuindex":"ASC","modResource.id":"ASC"}';
         $default['limit'] = false;
         //$default['cssTpl'] = false;
         //$default['jsTpl'] = false;
@@ -56,7 +56,20 @@ class SiblingNav {
 
     function run() {
 
-        if ($this->resource = $this->modx->getObject('modResource', $this->config['id'])) {
+        $classname = 'modResource';
+        $selectfields = $this->modx->getOption('selectfields', $this->config, '');
+        $selectfields = !empty($selectfields) ? explode(',', $selectfields) : null;
+        $joins = $this->modx->getOption('joins', $this->config, array());
+        $joins = !empty($joins) && !is_array($joins) ? $this->modx->fromJSON($joins) : $joins;
+        $c = $this->modx->newQuery($classname);
+        $c->select($this->modx->getSelectColumns($classname, $classname, '', $selectfields));
+        $c->where(array('modResource.id' => $this->config['id']));
+
+        if (is_array($joins) && count($joins) > 0) {
+            $this->prepareJoins($classname, $joins, $c);
+        }
+
+        if ($this->resource = $this->modx->getObject('modResource', $c)) {
             $this->rawValues = $this->resource->toArray('', true);
             if ($this->config['parents']) {
                 $parents = explode(',', $this->config['parents']);
@@ -102,12 +115,11 @@ class SiblingNav {
             }
 
 
-
             $this->makeFirstLast('first');
             $this->makeFirstLast('last');
             $this->makePrevNext('prev');
             $this->makePrevNext('next');
-            
+
             $this->limitRows();
 
             $this->rows['self'] = $this->resource->toArray();
@@ -193,7 +205,7 @@ class SiblingNav {
                 }
             }
             //if still here and no rows found check for infinitLoop - setting
-            if (!empty($this->config['infinitLoop'])){
+            if (!empty($this->config['infinitLoop'])) {
                 switch ($dir) {
                     case 'next':
                         $row = $this->rows['first'];
@@ -203,9 +215,9 @@ class SiblingNav {
                         $row = $this->rows['last'];
                         $row['_isactive'] = 1;
                         break;
-                }                
+                }
             }
-            
+
         }
         $this->rows[$dir] = $row;
         $this->ph[$dir] = $this->getChunk($this->config[$dir . 'Tpl'], $row);
@@ -247,13 +259,13 @@ class SiblingNav {
         $selectfields = $this->modx->getOption('selectfields', $this->config, '');
         $selectfields = !empty($selectfields) ? explode(',', $selectfields) : null;
         $joins = $this->modx->getOption('joins', $this->config, array());
-        $joins = !empty($joins) && !is_array($joins) ? $this->modx->fromJSON($joins) : $joins;        
+        $joins = !empty($joins) && !is_array($joins) ? $this->modx->fromJSON($joins) : $joins;
         $c = $this->modx->newQuery($classname);
         $c->select($this->modx->getSelectColumns($classname, $classname, '', $selectfields));
-        
+
         if (is_array($joins) && count($joins) > 0) {
             $this->prepareJoins($classname, $joins, $c);
-        }        
+        }
 
         if (empty($this->config['showDeleted'])) {
             $c->where(array('deleted' => '0'));
@@ -289,16 +301,29 @@ class SiblingNav {
                 $this->sort($c);
 
                 if ($fromhere) {
+                    
                     $sortfield1 = $this->sortfields[0];
                     $sortfield2 = $this->sortfields[1];
-
-                    $sortvalue1 = $this->rawValues[$sortfield1];
-                    $sortvalue2 = $this->rawValues[$sortfield2];
+                    $sortby1 = $this->sortbies[0];
+                    $sortby2 = $this->sortbies[1];                    
+                    
+                    $sortfield = str_replace('modResource.', '', $sortfield1);
+                    $sortvalue1 = $this->rawValues[$sortfield];
+                    if (empty($sortvalue1)) {
+                        $sortfield = str_replace('.', '_', $sortfield1);
+                        $sortvalue1 = $this->rawValues[$sortfield];
+                    }
+                    $sortfield = str_replace('modResource.', '', $sortfield2);
+                    $sortvalue2 = $this->rawValues[$sortfield];
+                    if (empty($sortvalue1)) {
+                        $sortfield = str_replace('.', '_', $sortfield2);
+                        $sortvalue2 = $this->rawValues[$sortfield];
+                    }                    
                     $greater_lower1 = $this->sortdirs[0] == 'DESC' ? '<' : '>';
                     $greater_lower2 = $this->sortdirs[1] == 'DESC' ? '<' : '>';
 
                     //select resources to the right - fall back to filter by the second sortfield (default:id), on duplicate sortvalues
-                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortfield2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortfield1 . ' ' . $greater_lower1 .
+                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortby2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortby1 . ' ' . $greater_lower1 .
                         ' ' . $this->modx->quote($sortvalue1) . ')';
                     //echo $where.'<br />';
                     $c->where($where, xPDOQuery::SQL_AND);
@@ -313,12 +338,25 @@ class SiblingNav {
                 if ($fromhere) {
                     $sortfield1 = $this->sortfields[0];
                     $sortfield2 = $this->sortfields[1];
-                    $sortvalue1 = $this->rawValues[$sortfield1];
-                    $sortvalue2 = $this->rawValues[$sortfield2];
+                    $sortby1 = $this->sortbies[0];
+                    $sortby2 = $this->sortbies[1];                         
+
+                    $sortfield = str_replace('modResource.', '', $sortfield1);
+                    $sortvalue1 = $this->rawValues[$sortfield];
+                    if (empty($sortvalue1)) {
+                        $sortfield = str_replace('.', '_', $sortfield1);
+                        $sortvalue1 = $this->rawValues[$sortfield];
+                    }
+                    $sortfield = str_replace('modResource.', '', $sortfield2);
+                    $sortvalue2 = $this->rawValues[$sortfield];
+                    if (empty($sortvalue1)) {
+                        $sortfield = str_replace('.', '_', $sortfield2);
+                        $sortvalue2 = $this->rawValues[$sortfield];
+                    }   
                     $greater_lower1 = $this->sortdirs[0] == 'DESC' ? '<' : '>';
                     $greater_lower2 = $this->sortdirs[1] == 'DESC' ? '<' : '>';
                     //select resources to the left - fall back to filter by the second sortfield (default:id), on duplicate sortvalues
-                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortfield2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortfield1 . ' ' . $greater_lower1 .
+                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortby2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortby1 . ' ' . $greater_lower1 .
                         ' ' . $this->modx->quote($sortvalue1) . ')';
                     //echo $where.'<br />';
                     $c->where($where, xPDOQuery::SQL_AND);
@@ -357,6 +395,8 @@ class SiblingNav {
 
     function sort(&$c, $reverse = false) {
         $sortby = $this->config['sortBy'];
+        $sortcasts = explode(',',$this->config['sortCasts']);
+        
         if (!empty($sortby)) {
             if (strpos($sortby, '{') === 0) {
                 $sorts = $this->modx->fromJSON($sortby);
@@ -364,21 +404,33 @@ class SiblingNav {
             if (is_array($sorts)) {
                 $this->sortfields = array();
                 $this->sortdirs = array();
+                $i = 0;
                 while (list($sort, $dir) = each($sorts)) {
                     if ($reverse) {
                         $dir = $dir == 'ASC' ? 'DESC' : 'ASC';
                     }
                     //echo $sort.' '.$dir.'<br />';
+                    if (!empty($sortcasts[$i])){
+                       $sortby = 'CAST(' . $sort .' AS ' .$sortcasts[$i] . ')'; 
+                    }else{
+                       $sortby = $sort; 
+                    }               
+                    
                     $this->sortfields[] = $sort;
                     $this->sortdirs[] = $dir;
-                    $c->sortby($sort, $dir);
+                    $this->sortbies[] = $sortby;
+                    
+                    $c->sortby($sortby, $dir); 
+                    $i++;
+                    
                 }
-                if (!in_array('id', $this->sortfields)) {
-                    $sort = 'id';
+                if (!in_array('id', $this->sortfields) && !in_array('modResource.id', $this->sortfields)) {
+                    $sort = 'modResource.id';
                     $dir = $this->sortdirs[0];
                     //echo $sort.' '.$dir.'<br />';
                     $this->sortfields[] = $sort;
                     $this->sortdirs[] = $dir;
+                    $this->sortbies[] = $sort;
                     $c->sortby($sort, $dir);
                 }
 
@@ -436,7 +488,7 @@ class SiblingNav {
         }
         return $chunk;
     }
-    
+
     public function prepareJoins($classname, $joins, &$c) {
 
         if (is_array($joins)) {
@@ -477,6 +529,6 @@ class SiblingNav {
                 }
             }
         }
-    }    
+    }
 
 }
