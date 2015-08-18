@@ -228,7 +228,21 @@ class SiblingNav {
     }
 
     function makeFirstLast($pos) {
-        if ($collection = $this->getSiblings($pos, '_default', false, 1)) {
+
+        $parent = '_default'; 
+        if ($this->config['parents']) {
+            $parents = explode(',', $this->config['parents']);
+            switch ($pos) {
+                case 'first':
+                    $parent = $parents[0];
+                    break;
+                case 'last':
+                    $parent = $parents[count($parents) - 1];
+                    break;
+            }
+        }
+
+        if ($collection = $this->getSiblings($pos, $parent, false, 1)) {
             $rows = $collection;
             $row = $rows[0];
             $row['_isself'] = $row['id'] == $this->config['id'] ? '1' : '0';
@@ -302,12 +316,12 @@ class SiblingNav {
                 $this->sort($c);
 
                 if ($fromhere) {
-                    
+
                     $sortfield1 = $this->sortfields[0];
                     $sortfield2 = $this->sortfields[1];
                     $sortby1 = $this->sortbies[0];
-                    $sortby2 = $this->sortbies[1];                    
-                    
+                    $sortby2 = $this->sortbies[1];
+
                     $sortfield = str_replace('modResource.', '', $sortfield1);
                     $sortvalue1 = $this->rawValues[$sortfield];
                     if (empty($sortvalue1)) {
@@ -319,13 +333,13 @@ class SiblingNav {
                     if (empty($sortvalue1)) {
                         $sortfield = str_replace('.', '_', $sortfield2);
                         $sortvalue2 = $this->rawValues[$sortfield];
-                    }                    
+                    }
                     $greater_lower1 = $this->sortdirs[0] == 'DESC' ? '<' : '>';
                     $greater_lower2 = $this->sortdirs[1] == 'DESC' ? '<' : '>';
 
                     //select resources to the right - fall back to filter by the second sortfield (default:id), on duplicate sortvalues
-                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortby2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortby1 . ' ' . $greater_lower1 .
-                        ' ' . $this->modx->quote($sortvalue1) . ')';
+                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortby2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortby1 . ' ' . $greater_lower1 . ' ' .
+                        $this->modx->quote($sortvalue1) . ')';
                     //echo $where.'<br />';
                     $c->where($where, xPDOQuery::SQL_AND);
                 }
@@ -340,7 +354,7 @@ class SiblingNav {
                     $sortfield1 = $this->sortfields[0];
                     $sortfield2 = $this->sortfields[1];
                     $sortby1 = $this->sortbies[0];
-                    $sortby2 = $this->sortbies[1];                         
+                    $sortby2 = $this->sortbies[1];
 
                     $sortfield = str_replace('modResource.', '', $sortfield1);
                     $sortvalue1 = $this->rawValues[$sortfield];
@@ -353,12 +367,12 @@ class SiblingNav {
                     if (empty($sortvalue1)) {
                         $sortfield = str_replace('.', '_', $sortfield2);
                         $sortvalue2 = $this->rawValues[$sortfield];
-                    }   
+                    }
                     $greater_lower1 = $this->sortdirs[0] == 'DESC' ? '<' : '>';
                     $greater_lower2 = $this->sortdirs[1] == 'DESC' ? '<' : '>';
                     //select resources to the left - fall back to filter by the second sortfield (default:id), on duplicate sortvalues
-                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortby2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortby1 . ' ' . $greater_lower1 .
-                        ' ' . $this->modx->quote($sortvalue1) . ')';
+                    $where = 'IF(' . $sortfield1 . ' = ' . $this->modx->quote($sortvalue1) . ',' . $sortby2 . ' ' . $greater_lower2 . ' ' . $this->modx->quote($sortvalue2) . ',' . $sortby1 . ' ' . $greater_lower1 . ' ' .
+                        $this->modx->quote($sortvalue1) . ')';
                     //echo $where.'<br />';
                     $c->where($where, xPDOQuery::SQL_AND);
                 }
@@ -396,8 +410,8 @@ class SiblingNav {
 
     function sort(&$c, $reverse = false) {
         $sortby = $this->config['sortBy'];
-        $sortcasts = explode(',',$this->config['sortCasts']);
-        
+        $sortcasts = explode(',', $this->config['sortCasts']);
+
         if (!empty($sortby)) {
             if (strpos($sortby, '{') === 0) {
                 $sorts = $this->modx->fromJSON($sortby);
@@ -410,22 +424,22 @@ class SiblingNav {
                     if ($reverse) {
                         $dir = $dir == 'ASC' ? 'DESC' : 'ASC';
                     }
-                    $sort = $sort == 'id' ? 'modResource.id' : $sort; 
-                    
+                    $sort = $sort == 'id' ? 'modResource.id' : $sort;
+
                     //echo $sort.' '.$dir.'<br />';
-                    if (!empty($sortcasts[$i])){
-                       $sortby = 'CAST(' . $sort .' AS ' .$sortcasts[$i] . ')'; 
-                    }else{
-                       $sortby = $sort; 
-                    }               
-                    
+                    if (!empty($sortcasts[$i])) {
+                        $sortby = 'CAST(' . $sort . ' AS ' . $sortcasts[$i] . ')';
+                    } else {
+                        $sortby = $sort;
+                    }
+
                     $this->sortfields[] = $sort;
                     $this->sortdirs[] = $dir;
                     $this->sortbies[] = $sortby;
-                    
-                    $c->sortby($sortby, $dir); 
+
+                    $c->sortby($sortby, $dir);
                     $i++;
-                    
+
                 }
                 if (!in_array('modResource.id', $this->sortfields)) {
                     $sort = 'modResource.id';
