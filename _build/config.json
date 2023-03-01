@@ -1,0 +1,65 @@
+{
+  "package":{
+    "elements":{
+      "categories":[
+        
+      ],
+      "snippets":[
+        {
+          "name":"siblingNav",
+          "file":"siblingnav.snippet.php"
+        }
+      ],
+      "chunks":[
+        {
+          "name":"snfirst",
+          "file":"snfirst.chunk.html"
+        },
+        {
+          "name":"snlast",
+          "file":"snlast.chunk.html"
+        },  
+        {
+          "name":"snnext",
+          "file":"snnext.chunk.html"
+        },  
+        {
+          "name":"snprev",
+          "file":"snprev.chunk.html"
+        },  
+        {
+          "name":"snrow",
+          "file":"snrow.chunk.html"
+        },
+        {
+          "name":"snself",
+          "file":"snself.chunk.html"
+        }                     
+      ],
+      "templates":[
+        
+      ],
+      "plugins":[
+
+      ]
+    }
+  },
+  "name":"siblingnav",
+  "lowCaseName":"siblingnav",
+  "description":"",
+  "author":"",
+  "version":"1.2.3-pl",
+  "build":{
+    "resolver":{
+      "resolversDir":"resolvers",
+      "after":[
+
+      ]
+    }
+  },
+  "database":{
+    "tables":[
+
+    ]
+  }
+}
