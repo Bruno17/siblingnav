@@ -420,7 +420,7 @@ class SiblingNav {
                 $this->sortfields = array();
                 $this->sortdirs = array();
                 $i = 0;
-                while (list($sort, $dir) = each($sorts)) {
+                foreach ($sorts as $sort => $dir) {
                     if ($reverse) {
                         $dir = $dir == 'ASC' ? 'DESC' : 'ASC';
                     }
