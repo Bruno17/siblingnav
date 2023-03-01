@@ -1,0 +1,12 @@
+_build/build.config.php
+config.core.php
+_build/data/transport.menus.php
+_build/data/transport.menus.php.copy
+_build/resolvers/resolve.tables.xxx.php
+_build/site/
+.idea/
+
+_packages/*.*
+!_packages/.gitignore
+!_packages/*.zip
+
